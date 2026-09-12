@@ -1,0 +1,441 @@
+<!DOCTYPE html>
+<html lang="ko">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>예약 현황 (보기 전용)</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Oswald:wght@500;600;700;800&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --bg:#1c1b19; --panel:#242320; --panel-2:#2b2924; --line:#3c382f;
+    --text:#f6f3ec; --text-muted:#ada284;
+    --avail:#33a154; --avail-text:#08200f; --avail-border:#237a3e;
+    --book:#e2483c; --book-text:#161311; --book-border:#a72e24;
+    --accent:#3f7fbf; --accent-text:#eef5ff;
+    --full-banner:#c14a3c;
+  }
+  *{ box-sizing:border-box; }
+  html,body{ margin:0; padding:0; background:var(--bg); color:var(--text); }
+  body{
+    font-family:'Inter', -apple-system, sans-serif; font-size:16px;
+    padding:18px 14px 60px; max-width:640px; margin:0 auto; min-height:100vh;
+  }
+  h1,h2,.num-font{ font-family:'Oswald', sans-serif; }
+  button{ font-family:'Inter',sans-serif; }
+
+  header{ margin-bottom:16px; }
+  header .eyebrow{ color:var(--text-muted); font-size:13px; display:flex; align-items:center; gap:7px; margin-bottom:4px; }
+  header .eyebrow .dot{ width:7px; height:7px; border-radius:50%; background:var(--accent); }
+  header .eyebrow .dot.offline{ background:var(--full-banner); }
+  header h1{ font-size:24px; font-weight:700; margin:0 0 4px; }
+  header .view-only-note{ color:var(--text-muted); font-size:13px; }
+
+  #errorBanner{ background:rgba(193,74,60,0.15); border:1px solid var(--full-banner); color:#ffb199; border-radius:10px; padding:10px 14px; font-size:13px; margin-bottom:14px; }
+  #loading{ color:var(--text-muted); text-align:center; padding:30px 0; }
+  .hidden{ display:none !important; }
+
+  .big-nav{ display:flex; align-items:center; justify-content:space-between; gap:10px; margin-bottom:14px; }
+  .big-arrow{
+    width:58px; height:58px; border-radius:16px; border:1.5px solid var(--line);
+    background:var(--panel); color:var(--text); font-size:28px; font-weight:700;
+    cursor:pointer; display:flex; align-items:center; justify-content:center; flex-shrink:0;
+  }
+  .big-arrow:active{ background:var(--panel-2); }
+  .big-nav .nav-label{ text-align:center; flex:1; }
+  .big-nav .nav-label .main{ font-family:'Oswald',sans-serif; font-size:24px; font-weight:600; line-height:1.1; }
+  .big-nav .nav-label .sub{ color:var(--text-muted); font-size:14px; margin-top:2px; }
+
+  .back-link{
+    background:none; border:none; color:var(--accent); font-size:16px; font-weight:600;
+    padding:10px 4px 14px; cursor:pointer; display:flex; align-items:center; gap:4px;
+  }
+
+  .weekday-row{ display:grid; grid-template-columns:repeat(7,1fr); gap:4px; margin-bottom:6px; }
+  .weekday-row span{ text-align:center; font-size:13px; color:var(--text-muted); font-weight:600; }
+  .weekday-row span.sun{ color:#e2867c; }
+  .weekday-row span.sat{ color:#7fb6e2; }
+
+  .calendar-grid{ display:grid; grid-template-columns:repeat(7,1fr); gap:4px; margin-bottom:18px; }
+  .month-cell{
+    background:var(--panel); border:1px solid var(--line); border-radius:10px;
+    padding:5px 3px; min-height:84px; cursor:pointer; display:flex; flex-direction:column; gap:4px;
+  }
+  .month-cell:active{ background:var(--panel-2); }
+  .month-cell.empty{ background:transparent; border:none; cursor:default; }
+  .month-cell.today{ border-color:var(--accent); border-width:2px; }
+  .month-cell.sold-out{ border-color:#c9a6ff; border-width:3px; }
+  .month-cell-date{ font-family:'Oswald',sans-serif; font-size:13px; font-weight:600; color:var(--text); }
+  .mini-grid{ display:grid; grid-template-columns:repeat(5,1fr); gap:2.5px; }
+  .mini-sq{
+    aspect-ratio:1; border-radius:3px; display:flex; align-items:center; justify-content:center;
+    font-size:9.5px; font-weight:700; line-height:1;
+  }
+  .mini-sq.available{ background:var(--avail); color:var(--avail-text); }
+  .mini-sq.booked{ background:var(--book); color:var(--book-text); position:relative; }
+  .mini-sq.booked::before, .mini-sq.booked::after{
+    content:''; position:absolute; top:50%; left:50%; width:78%; height:2px;
+    background:rgba(255,255,255,0.8); border-radius:1px;
+  }
+  .mini-sq.booked::before{ transform:translate(-50%,-50%) rotate(45deg); }
+  .mini-sq.booked::after{ transform:translate(-50%,-50%) rotate(-45deg); }
+
+  section.block{ background:var(--panel); border:1px solid var(--line); border-radius:12px; padding:16px; margin-bottom:16px; }
+  .panel-title{ font-size:14px; color:var(--text-muted); margin:0 0 10px; font-weight:600; }
+
+  .memo-list-big .memo-item-big{ padding:12px 0; border-top:1px solid var(--line); }
+  .memo-list-big .memo-item-big:first-child{ border-top:none; }
+  .memo-item-big .content{ font-size:19px; font-weight:800; line-height:1.45; color:var(--text); white-space:pre-wrap; }
+  .memo-empty{ color:var(--text-muted); font-size:14px; }
+
+  .status-line{ font-family:'Oswald',sans-serif; font-size:22px; font-weight:700; margin-bottom:16px; }
+
+  .day-chip-grid{ display:grid; grid-template-columns:repeat(auto-fill, minmax(78px,1fr)); gap:10px; margin-bottom:16px; }
+  .day-chip{
+    aspect-ratio:1; border-radius:14px; border:2px solid var(--line);
+    display:flex; align-items:center; justify-content:center; position:relative;
+  }
+  .day-chip .num{ font-family:'Oswald',sans-serif; font-size:26px; font-weight:700; line-height:1; }
+  .day-chip.available{ background:var(--avail); border-color:var(--avail-border); color:var(--avail-text); }
+  .day-chip.booked{ background:var(--book); border-color:var(--book-border); }
+  .day-chip.booked .num{ color:#161311; }
+  .day-chip.booked::before, .day-chip.booked::after{
+    content:''; position:absolute; top:50%; left:50%; width:70%; height:6px;
+    background:rgba(255,255,255,0.8); border-radius:3px;
+  }
+  .day-chip.booked::before{ transform:translate(-50%,-50%) rotate(45deg); }
+  .day-chip.booked::after{ transform:translate(-50%,-50%) rotate(-45deg); }
+
+  .detail-group{ display:flex; align-items:center; gap:14px; padding:14px 10px; border-top:1px solid var(--line); }
+  .detail-group:first-child{ border-top:none; }
+  .detail-group.from-call{ border-left:4px solid var(--accent); background:rgba(63,127,191,0.08); border-radius:8px; }
+  .detail-group .nums{ font-family:'Oswald',sans-serif; color:var(--book); font-weight:800; font-size:22px; flex-shrink:0; white-space:nowrap; }
+  .detail-group .note{ color:var(--text); font-size:16px; line-height:1.4; flex:1; white-space:pre-wrap; }
+  .call-badge{ display:inline-block; background:var(--accent); color:var(--accent-text); font-size:12px; font-weight:700; padding:3px 9px; border-radius:20px; margin-bottom:5px; }
+  .detail-empty{ color:var(--text-muted); font-size:14px; padding:4px 0; }
+
+  .finder-block{
+    background:#251c3d; border:1px solid #45356f; border-radius:12px; padding:18px; margin-bottom:16px;
+  }
+  .finder-head{ display:flex; align-items:center; justify-content:space-between; margin-bottom:14px; }
+  .finder-title{ font-size:15px; color:#cdbcf7; font-weight:700; }
+  .finder-chip-row{ display:flex; flex-wrap:wrap; gap:10px; margin-bottom:18px; }
+  .finder-chip{
+    min-width:56px; height:56px; padding:0 8px; border-radius:12px; border:2px solid #45356f;
+    background:transparent; color:#e6dcfb; font-family:'Oswald',sans-serif; font-size:19px; font-weight:700;
+    cursor:pointer;
+  }
+  .finder-chip.active{ background:#d9a441; border-color:#a8791f; color:#241a05; }
+  .finder-result-label{ font-size:15px; color:#cdbcf7; margin-bottom:12px; line-height:1.5; }
+  .finder-dates{ display:flex; flex-wrap:wrap; gap:10px; }
+  .finder-date-tag{
+    background:#412d7d; color:#f5efff; font-family:'Oswald',sans-serif; font-weight:800; font-size:16px;
+    padding:12px 16px; border-radius:10px; cursor:pointer; border:1px solid #6a4dc4;
+    display:flex; align-items:center; gap:9px;
+  }
+  .finder-date-tag .tag-dow{ font-size:19px; font-weight:800; }
+  .finder-date-tag .tag-dow.weekday{ color:#d8ccf6; }
+  .finder-date-tag .tag-dow.weekend{ color:#ff7a68; }
+  .finder-empty{ color:#a996df; font-size:14px; }
+</style>
+</head>
+<body>
+
+<div id="loading">불러오는 중…</div>
+<div id="errorBanner" class="hidden"></div>
+
+<div id="app" class="hidden">
+  <header>
+    <div class="eyebrow"><span class="dot" id="syncDot"></span><span id="syncLabel">Supabase에 연결됨</span></div>
+    <h1>예약 현황</h1>
+    <div class="view-only-note">보기 전용 화면이에요. 예약·취소는 관리자 사이트에서 처리해주세요.</div>
+  </header>
+
+  <div id="monthView">
+    <section class="finder-block">
+      <div class="finder-head">
+        <div class="finder-title">예약된 날짜 찾기</div>
+        <button class="finder-clear" id="soldOutClearBtn">선택 초기화</button>
+      </div>
+      <div class="finder-chip-row" id="soldOutChipRow"></div>
+      <div class="finder-result-label" id="soldOutResultLabel"></div>
+    </section>
+
+    <div class="big-nav">
+      <button class="big-arrow" id="prevMonth">‹</button>
+      <div class="nav-label"><div class="main" id="monthLabel">2026년 1월</div><div class="sub">날짜를 눌러 예약 현황을 확인하세요</div></div>
+      <button class="big-arrow" id="nextMonth">›</button>
+    </div>
+
+    <div class="weekday-row">
+      <span class="sun">일</span><span>월</span><span>화</span><span>수</span><span>목</span><span>금</span><span class="sat">토</span>
+    </div>
+    <div class="calendar-grid" id="calendarGrid"></div>
+
+    <section class="block">
+      <div class="panel-title">이번달 메모장</div>
+      <div class="memo-list-big" id="monthNoteList"></div>
+    </section>
+  </div>
+
+  <div id="dayView" class="hidden">
+    <button class="back-link" id="backToMonth">‹ 월 캘린더로</button>
+
+    <div class="big-nav">
+      <button class="big-arrow" id="prevDay">‹</button>
+      <div class="nav-label"><div class="main" id="dayLabel">1월 10일</div><div class="sub" id="daySub">금요일</div></div>
+      <button class="big-arrow" id="nextDay">›</button>
+    </div>
+
+    <div class="status-line" id="statusLine">예약현황 0/10</div>
+    <div class="panel-title" id="chipTitle">번호별 예약 현황</div>
+    <div class="day-chip-grid" id="dayChipGrid"></div>
+
+    <section class="block">
+      <div class="panel-title">예약된 인부</div>
+      <div id="detailGroups"></div>
+    </section>
+  </div>
+</div>
+
+<script>
+(function(){
+  const SUPABASE_URL = 'https://uyeiskoylxmkwlzrdbcq.supabase.co';
+  const SUPABASE_KEY = 'sb_publishable_81sUd4ZIC1Tbczn0PxxctQ_M6pISb-7';
+  const REST = SUPABASE_URL + '/rest/v1';
+  const HEADERS = { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' };
+
+  const DOW = ['일','월','화','수','목','금','토'];
+  let state = { config:{ itemCount:10, itemLabel:'인부' }, bookings:{}, notes:{} };
+  let viewMode = 'month';
+  let monthCursor = new Date();
+  let currentDate = todayStr();
+  let soldOutSelected = null;
+
+  function todayStr(){ const d=new Date(); return d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate()); }
+  function pad(n){ return n<10 ? '0'+n : ''+n; }
+  function dateLabel(dateStr){ const d=new Date(dateStr+'T00:00:00'); return (d.getMonth()+1)+'월 '+d.getDate()+'일'; }
+  function dowLabel(dateStr){ const d=new Date(dateStr+'T00:00:00'); return DOW[d.getDay()]+'요일'; }
+  function dowChar(dateStr){ const d=new Date(dateStr+'T00:00:00'); return DOW[d.getDay()]; }
+  function isWeekend(dateStr){ const d=new Date(dateStr+'T00:00:00'); const w=d.getDay(); return w===0 || w===6; }
+  function escapeHtml(s){ const div=document.createElement('div'); div.textContent=s; return div.innerHTML; }
+
+  function showError(msg){
+    document.getElementById('errorBanner').textContent = msg;
+    document.getElementById('errorBanner').classList.remove('hidden');
+    document.getElementById('syncDot').classList.add('offline');
+    document.getElementById('syncLabel').textContent = '연결 문제 있음';
+  }
+
+  async function fetchConfig(){
+    const res = await fetch(REST+'/board_config?id=eq.1&select=item_count,item_label', {headers:HEADERS});
+    if(!res.ok) throw new Error('설정을 불러오지 못했어요');
+    const rows = await res.json();
+    return rows.length ? {itemCount:rows[0].item_count, itemLabel:rows[0].item_label} : {itemCount:10,itemLabel:'인부'};
+  }
+  async function fetchAllBookings(){
+    const res = await fetch(REST+'/bookings?select=date,number,note,batch_id,source&order=date.asc', {headers:HEADERS});
+    if(!res.ok) throw new Error('예약 데이터를 불러오지 못했어요');
+    const rows = await res.json();
+    const byDate = {};
+    rows.forEach(r=>{ const k=String(r.date); if(!byDate[k]) byDate[k]={}; byDate[k][r.number]={note:r.note||'', batch:r.batch_id||null, source:r.source||'manual'}; });
+    return byDate;
+  }
+  async function fetchAllNotes(){
+    const res = await fetch(REST+'/notes?select=id,month,content&order=created_at.asc', {headers:HEADERS});
+    if(!res.ok) throw new Error('메모를 불러오지 못했어요');
+    const rows = await res.json();
+    const byMonth = {};
+    rows.forEach(r=>{ if(!byMonth[r.month]) byMonth[r.month]=[]; byMonth[r.month].push({id:r.id, content:r.content}); });
+    return byMonth;
+  }
+
+  function monthKey(d){ return d.getFullYear()+'-'+pad(d.getMonth()+1); }
+
+  function renderMonth(){
+    const y = monthCursor.getFullYear(), m = monthCursor.getMonth();
+    document.getElementById('monthLabel').textContent = y+'년 '+(m+1)+'월';
+    const grid = document.getElementById('calendarGrid');
+    grid.innerHTML = '';
+    const firstWeekday = new Date(y,m,1).getDay();
+    const daysInMonth = new Date(y,m+1,0).getDate();
+    for(let i=0;i<firstWeekday;i++){
+      const empty = document.createElement('div'); empty.className='month-cell empty'; grid.appendChild(empty);
+    }
+    for(let d=1; d<=daysInMonth; d++){
+      const dateStr = y+'-'+pad(m+1)+'-'+pad(d);
+      const dayBookings = state.bookings[dateStr] || {};
+      const cell = document.createElement('div');
+      const isSoldOutHere = soldOutSelected !== null && !!dayBookings[soldOutSelected];
+      cell.className = 'month-cell' + (dateStr===todayStr() ? ' today' : '') + (isSoldOutHere ? ' sold-out' : '');
+      cell.addEventListener('click', () => switchToDay(dateStr));
+      const dnum = document.createElement('div'); dnum.className='month-cell-date'; dnum.textContent=d;
+      cell.appendChild(dnum);
+      const mini = document.createElement('div'); mini.className='mini-grid';
+      for(let n=1; n<=state.config.itemCount; n++){
+        const sq = document.createElement('span');
+        const isBooked = !!dayBookings[n];
+        sq.className = 'mini-sq ' + (isBooked ? 'booked' : 'available');
+        sq.textContent = n;
+        mini.appendChild(sq);
+      }
+      cell.appendChild(mini);
+      grid.appendChild(cell);
+    }
+
+    const mk = monthKey(monthCursor);
+    const list = document.getElementById('monthNoteList');
+    const notes = state.notes[mk] || [];
+    if(notes.length===0){
+      list.innerHTML = '<div class="memo-empty">이번 달에 작성된 메모가 없어요.</div>';
+    } else {
+      list.innerHTML = '';
+      notes.forEach(n=>{
+        const row = document.createElement('div'); row.className='memo-item-big';
+        row.innerHTML = '<span class="content">'+escapeHtml(n.content)+'</span>';
+        list.appendChild(row);
+      });
+    }
+
+    renderSoldOutFinder();
+  }
+
+  function renderSoldOutFinder(){
+    const cfg = state.config;
+    const row = document.getElementById('soldOutChipRow');
+    row.innerHTML = '';
+    for(let n=1; n<=cfg.itemCount; n++){
+      const btn = document.createElement('button');
+      btn.className = 'finder-chip' + (soldOutSelected===n ? ' active' : '');
+      btn.textContent = n;
+      btn.addEventListener('click', () => {
+        soldOutSelected = (soldOutSelected === n) ? null : n;
+        renderMonth();
+      });
+      row.appendChild(btn);
+    }
+
+    const label = document.getElementById('soldOutResultLabel');
+    const y = monthCursor.getFullYear(), m = monthCursor.getMonth();
+
+    if(soldOutSelected === null){
+      label.textContent = '번호를 하나 선택하면, 그 번호가 이번 달에 이미 예약(솔드아웃)된 날짜가 캘린더에 밝은 보라색 테두리로 표시돼요.';
+      return;
+    }
+
+    const daysInMonth = new Date(y, m+1, 0).getDate();
+    let count = 0;
+    for(let d=1; d<=daysInMonth; d++){
+      const dateStr = y+'-'+pad(m+1)+'-'+pad(d);
+      if((state.bookings[dateStr]||{})[soldOutSelected]) count++;
+    }
+    label.textContent = soldOutSelected + '번 — 이번 달(' + (m+1) + '월)에 예약된 날짜 ' + count + '일. 캘린더의 보라색 테두리를 확인하세요.';
+  }
+
+  function shiftMonth(delta){
+    monthCursor = new Date(monthCursor.getFullYear(), monthCursor.getMonth()+delta, 1);
+    renderMonth();
+  }
+
+  function switchToDay(dateStr){
+    currentDate = dateStr;
+    viewMode = 'day';
+    document.getElementById('monthView').classList.add('hidden');
+    document.getElementById('dayView').classList.remove('hidden');
+    renderDay();
+  }
+  function switchToMonth(){
+    viewMode = 'month';
+    document.getElementById('dayView').classList.add('hidden');
+    document.getElementById('monthView').classList.remove('hidden');
+    renderMonth();
+  }
+  function shiftDay(delta){
+    const d = new Date(currentDate+'T00:00:00');
+    d.setDate(d.getDate()+delta);
+    currentDate = d.getFullYear()+'-'+pad(d.getMonth()+1)+'-'+pad(d.getDate());
+    renderDay();
+  }
+
+  function groupBookings(dayBookings){
+    const groups = {};
+    const order = [];
+    Object.keys(dayBookings).forEach(numStr=>{
+      const num = Number(numStr);
+      const info = dayBookings[numStr];
+      const key = info.batch ? ('b:'+info.batch) : ('n:'+(info.note||'')+':'+num);
+      if(!groups[key]){ groups[key] = {note: info.note, source: info.source||'manual', numbers: []}; order.push(key); }
+      groups[key].numbers.push(num);
+    });
+    return order.map(k => groups[k]).map(g => ({note:g.note, source:g.source, numbers:g.numbers.sort((a,b)=>a-b)}))
+      .sort((a,b)=> Math.min(...a.numbers) - Math.min(...b.numbers));
+  }
+
+  function renderDay(){
+    const cfg = state.config;
+    document.getElementById('dayLabel').textContent = dateLabel(currentDate);
+    document.getElementById('daySub').textContent = dowLabel(currentDate);
+
+    const dayBookings = state.bookings[currentDate] || {};
+    const bookedCount = Object.keys(dayBookings).length;
+    document.getElementById('statusLine').textContent = '예약현황 ' + bookedCount + '/' + cfg.itemCount;
+
+    const grid = document.getElementById('dayChipGrid');
+    grid.innerHTML = '';
+    for(let i=1;i<=cfg.itemCount;i++){
+      const isBooked = !!dayBookings[i];
+      const chip = document.createElement('div');
+      chip.className = 'day-chip ' + (isBooked ? 'booked' : 'available');
+      chip.innerHTML = '<span class="num">'+i+'</span>';
+      grid.appendChild(chip);
+    }
+
+    const groups = groupBookings(dayBookings);
+    const wrap = document.getElementById('detailGroups');
+    if(groups.length===0){
+      wrap.innerHTML = '<div class="detail-empty">이 날짜엔 예약이 없어요.</div>';
+    } else {
+      wrap.innerHTML = '';
+      groups.forEach(g=>{
+        const row = document.createElement('div'); row.className='detail-group' + (g.source==='call' ? ' from-call' : '');
+        const nums = document.createElement('div'); nums.className='nums'; nums.textContent = g.numbers.join(', ')+'번';
+        const note = document.createElement('div'); note.className='note';
+        if(g.source === 'call'){
+          const badge = document.createElement('span'); badge.className='call-badge'; badge.textContent = '📞 전화 자동입력';
+          note.appendChild(badge); note.appendChild(document.createElement('br'));
+        }
+        note.appendChild(document.createTextNode(g.note || '메모 없음'));
+        row.appendChild(nums); row.appendChild(note);
+        wrap.appendChild(row);
+      });
+    }
+  }
+
+  async function init(){
+    try{
+      const [config, bookings, notes] = await Promise.all([fetchConfig(), fetchAllBookings(), fetchAllNotes()]);
+      state.config = config; state.bookings = bookings; state.notes = notes;
+      document.getElementById('loading').classList.add('hidden');
+      document.getElementById('app').classList.remove('hidden');
+    }catch(e){
+      document.getElementById('loading').classList.add('hidden');
+      document.getElementById('errorBanner').classList.remove('hidden');
+      document.getElementById('errorBanner').textContent = 'Supabase 연결 실패: ' + (e.message||'');
+      document.getElementById('app').classList.remove('hidden');
+    }
+
+    document.getElementById('prevMonth').addEventListener('click', () => shiftMonth(-1));
+    document.getElementById('nextMonth').addEventListener('click', () => shiftMonth(1));
+    document.getElementById('backToMonth').addEventListener('click', switchToMonth);
+    document.getElementById('prevDay').addEventListener('click', () => shiftDay(-1));
+    document.getElementById('nextDay').addEventListener('click', () => shiftDay(1));
+    document.getElementById('soldOutClearBtn').addEventListener('click', () => { soldOutSelected = null; renderMonth(); });
+
+    renderMonth();
+  }
+
+  init();
+})();
+</script>
+</body>
+</html>
