@@ -206,7 +206,7 @@
   const HEADERS = { 'apikey': SUPABASE_KEY, 'Authorization': 'Bearer ' + SUPABASE_KEY, 'Content-Type': 'application/json' };
 
   const DOW = ['일','월','화','수','목','금','토'];
-  let state = { config:{ itemCount:10, itemLabel:'인부' }, bookings:{}, notes:{} };
+  let state = { config:{ itemStart:1, itemCount:10, itemLabel:'인부' }, bookings:{}, notes:{} };
   let viewMode = 'month';
   let monthCursor = new Date();
   let currentDate = todayStr();
@@ -228,10 +228,10 @@
   }
 
   async function fetchConfig(){
-    const res = await fetch(REST+'/board_config?id=eq.1&select=item_count,item_label', {headers:HEADERS});
+    const res = await fetch(REST+'/board_config?id=eq.1&select=item_start,item_count,item_label', {headers:HEADERS});
     if(!res.ok) throw new Error('설정을 불러오지 못했어요');
     const rows = await res.json();
-    return rows.length ? {itemCount:rows[0].item_count, itemLabel:rows[0].item_label} : {itemCount:10,itemLabel:'인부'};
+    return rows.length ? {itemStart:(rows[0].item_start!=null ? rows[0].item_start : 1), itemCount:rows[0].item_count, itemLabel:rows[0].item_label} : {itemStart:1, itemCount:10,itemLabel:'인부'};
   }
   async function fetchAllBookings(){
     const res = await fetch(REST+'/bookings?select=date,number,note,batch_id,source&order=date.asc', {headers:HEADERS});
@@ -272,7 +272,8 @@
       const dnum = document.createElement('div'); dnum.className='month-cell-date'; dnum.textContent=d;
       cell.appendChild(dnum);
       const mini = document.createElement('div'); mini.className='mini-grid';
-      for(let n=1; n<=state.config.itemCount; n++){
+      const miniEnd = state.config.itemStart + state.config.itemCount - 1;
+      for(let n=state.config.itemStart; n<=miniEnd; n++){
         const sq = document.createElement('span');
         const isBooked = !!dayBookings[n];
         sq.className = 'mini-sq ' + (isBooked ? 'booked' : 'available');
@@ -304,7 +305,8 @@
     const cfg = state.config;
     const row = document.getElementById('soldOutChipRow');
     row.innerHTML = '';
-    for(let n=1; n<=cfg.itemCount; n++){
+    const sEnd = cfg.itemStart + cfg.itemCount - 1;
+    for(let n=cfg.itemStart; n<=sEnd; n++){
       const btn = document.createElement('button');
       btn.className = 'finder-chip' + (soldOutSelected===n ? ' active' : '');
       btn.textContent = n;
@@ -382,7 +384,8 @@
 
     const grid = document.getElementById('dayChipGrid');
     grid.innerHTML = '';
-    for(let i=1;i<=cfg.itemCount;i++){
+    const dEnd = cfg.itemStart + cfg.itemCount - 1;
+    for(let i=cfg.itemStart; i<=dEnd; i++){
       const isBooked = !!dayBookings[i];
       const chip = document.createElement('div');
       chip.className = 'day-chip ' + (isBooked ? 'booked' : 'available');
